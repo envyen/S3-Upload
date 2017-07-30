@@ -1,5 +1,5 @@
 /*
- * main.c
+ * S3-Upload.c
  *
  * Copyright 2017 Naveen Karuthedath <naveen.karuthedath@gmail.com>
  *
@@ -19,6 +19,10 @@
  * MA 02110-1301, USA.
  *
  *
+ */
+
+/*
+ * Compile with "gcc  *.c  -lcurl  -o S3-Upload"
  */
 
 #include <stdio.h>
