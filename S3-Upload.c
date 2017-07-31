@@ -40,6 +40,12 @@
 static CURL *curl;
 CURLcode result;
 
+#define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL     2
+struct myprogress {
+	double lastruntime;
+	CURL *curl;
+};
+
 void getDate(char *date)
 {
 	time_t lt;
@@ -57,6 +63,52 @@ size_t reader(void *ptr, size_t size, size_t nmemb, FILE *stream)
     return retcode;
 }
 
+static int xferinfo(void *p,
+		curl_off_t dltotal, curl_off_t dlnow,
+		curl_off_t ultotal, curl_off_t ulnow)
+{
+	struct myprogress *myp = (struct myprogress *)p;
+	CURL *curl = myp->curl;
+	double curtime = 0;
+	char unit = ' ';
+
+	curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &curtime);
+
+	double speed;
+	int res = curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed);
+	if(!res)
+	{
+		if (speed > 1024 * 1024 * 1024)
+		{
+			unit = 'G';
+			speed /= 1024 * 1024 * 1024;
+		}
+		else if (speed > 1024 * 1024)
+		{
+			unit = 'M';
+			speed /= 1024 * 1024;
+		}
+		else if (speed > 1024)
+		{
+			unit = 'k';
+			speed /= 1024;
+		}
+	}
+
+	if((curtime - myp->lastruntime) >= MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL) {
+		myp->lastruntime = curtime;
+		if(speed > 0) {
+			printf ("\033[A\33[2KT\r Upload: %.2f/%.2f kB, speed: %.2f %cb/s \n" , (double)ulnow/1024, (double)ultotal/1024, speed, unit);
+			fflush(stdout);
+		}
+	}
+
+	//if(dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
+	//	return 1;
+
+	return 0;
+}
+
 int main()
 {
 	char filename[255], temp[500], auth[200], url[200]; 
@@ -68,6 +120,8 @@ int main()
 	char *b64 	= (char*)malloc(sizeof(char) * 200);
 	char *date 	= (char*)malloc(sizeof(char) * 40);
 
+	struct myprogress prog;
+
 	getDate(date);
 	strcpy(secret, S3SECRET);
 	sprintf(filename, "temp.bin");
@@ -75,13 +129,16 @@ int main()
 	curl = curl_easy_init();
 	if(curl)
 	{
+		prog.lastruntime = 0;
+		prog.curl = curl;
+
 		char *eFilename = curl_easy_escape(curl, filename, strlen(filename));
 		sprintf(sign, "PUT\n\n%s\n%s\nx-amz-acl:public-read\n/%s/%s/%s",
-			"application/x-compressed-tar",
-			date,
-			S3BUCKET,
-			S3PATH,
-			eFilename);
+				"application/x-compressed-tar",
+				date,
+				S3BUCKET,
+				S3PATH,
+				eFilename);
 		curl_free(eFilename);
 
 		/* Base64 encoded HMAC SHA1 Signature */
@@ -109,7 +166,7 @@ int main()
 		fstat(fileno(fd), &file_info);
 
 		sprintf(url, "https://%s.s3.amazonaws.com/%s/%s", S3BUCKET, S3PATH, filename);
-		printf("Uploading to: %s\n", url);
+		printf("Uploading to %s\n\n", url);
 
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);			//Set automaticallly redirection
 		curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 1);				//Set max redirection times
@@ -126,6 +183,10 @@ int main()
 		curl_easy_setopt(curl, CURLOPT_HEADER, 1L);				//Set header true
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);				//Set verbose true
 #endif
+		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, xferinfo);
+		curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &prog);
+		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+
 		result = curl_easy_perform(curl);
 		long http_code = 0;
 		curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
