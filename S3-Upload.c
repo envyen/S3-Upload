@@ -63,6 +63,8 @@ size_t reader(void *ptr, size_t size, size_t nmemb, FILE *stream)
     return retcode;
 }
 
+#define CLEARLINE "\033[A\33[2KT\r"
+
 static int xferinfo(void *p,
 		curl_off_t dltotal, curl_off_t dlnow,
 		curl_off_t ultotal, curl_off_t ulnow)
@@ -98,7 +100,7 @@ static int xferinfo(void *p,
 	if((curtime - myp->lastruntime) >= MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL) {
 		myp->lastruntime = curtime;
 		if(speed > 0) {
-			printf ("\033[A\33[2KT\r Upload: %.2f/%.2f kB, speed: %.2f %cb/s \n" , (double)ulnow/1024, (double)ultotal/1024, speed, unit);
+			printf (CLEARLINE "Upload: %.2f/%.2f kB, Speed: %.2f %cb/s \n" , (double)ulnow/1024, (double)ultotal/1024, speed, unit);
 			fflush(stdout);
 		}
 	}
@@ -191,7 +193,7 @@ int main()
 		long http_code = 0;
 		curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
 		if( http_code == 200)
-			printf("Uploaded to: %s\n", url);
+			printf(CLEARLINE "Uploaded to: %s\n", url);
 		else
 			printf("Failed to Upload: %s (%ld)\n", url, http_code);
 		fclose(fd);
