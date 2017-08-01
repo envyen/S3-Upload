@@ -21,10 +21,6 @@
  *
  */
 
-/*
- * Compile with "gcc  *.c  -lcurl  -o S3-Upload"
- */
-
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -185,6 +181,11 @@ int main()
 		curl_easy_setopt(curl, CURLOPT_HEADER, 1L);				//Set header true
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);				//Set verbose true
 #endif
+#ifdef TIMEOUT_LOWSPEED
+		/* abort if slower than 30 bytes/sec during 60 seconds */
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
+#endif
 		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, xferinfo);
 		curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &prog);
 		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
@@ -192,7 +193,7 @@ int main()
 		result = curl_easy_perform(curl);
 		long http_code = 0;
 		curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
-		if( http_code == 200)
+		if(http_code == 200)
 			printf(CLEARLINE "Uploaded to: %s\n", url);
 		else
 			printf("Failed to Upload: %s (%ld)\n", url, http_code);
